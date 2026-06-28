@@ -25,5 +25,14 @@
     "status": "paid",
     "poId": "PO-9003",
     "blockReason": null
+  },
+  {
+    "invoiceId": "INV-1004",
+    "vendor": "Northwind Components",
+    "amount": 15000,
+    "currency": "USD",
+    "status": "blocked",
+    "poId": "PO-9004",
+    "blockReason": "VENDOR_BANK_DETAILS_MISSING"
   }
 ]

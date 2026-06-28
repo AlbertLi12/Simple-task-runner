@@ -137,6 +137,19 @@ def test_policy_lookup_failure_returns_partial_answer(monkeypatch):
     assert action_types(body) == ["invoice_lookup", "po_lookup", "policy_lookup"]
 
 
+def test_blocked_invoice_with_unknown_policy_returns_partial_answer():
+    response = run_agent("Please check invoice INV-1004")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "partial"
+    assert body["error"]["errorCode"] == "POLICY_NOT_FOUND"
+    assert "INV-1004" in body["finalAnswer"]
+    assert "policy information is unavailable" in body["finalAnswer"].lower()
+    assert "lisa.wong@example.com" in body["finalAnswer"]
+    assert action_types(body) == ["invoice_lookup", "po_lookup", "policy_lookup"]
+
+
 def test_unexpected_tool_result_is_tool_execution_failure(monkeypatch):
     from backend.tools.registry import build_default_registry
 
@@ -176,3 +189,18 @@ def test_trace_endpoint_returns_structured_steps():
     ]
     assert all("startedAt" in step for step in trace["steps"])
     assert all("durationMs" in step for step in trace["steps"])
+
+
+def test_run_response_actions_include_trace_and_step_ids():
+    response = run_agent("Please check invoice INV-1001")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["traceId"]
+    assert [action["stepId"] for action in body["actions"]] == [
+        "step-001",
+        "step-002",
+        "step-003",
+        "step-004",
+    ]
+    assert all(action["traceId"] == body["traceId"] for action in body["actions"])

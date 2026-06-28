@@ -9,10 +9,10 @@ const successResponse = {
   finalAnswer:
     "Invoice INV-1001 for ABC Logistics is not paid yet because it is blocked because the invoice amount is higher than the PO amount. Suggested next step: Contact PO owner.",
   actions: [
-    { type: "invoice_lookup", status: "success" },
-    { type: "po_lookup", status: "success" },
-    { type: "policy_lookup", status: "success" },
-    { type: "draft_email", status: "success" }
+    { type: "invoice_lookup", status: "success", traceId: "trace-123", stepId: "step-001" },
+    { type: "po_lookup", status: "success", traceId: "trace-123", stepId: "step-002" },
+    { type: "policy_lookup", status: "success", traceId: "trace-123", stepId: "step-003" },
+    { type: "draft_email", status: "success", traceId: "trace-123", stepId: "step-004" }
   ],
   traceId: "trace-123"
 };
@@ -54,7 +54,7 @@ afterEach(() => {
 });
 
 describe("Finance agent frontend", () => {
-  test("submits a user request and displays the final answer with readable trace steps", async () => {
+  test("shows action statuses immediately and loads trace details only when requested", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(successResponse))
@@ -76,20 +76,40 @@ describe("Finance agent frontend", () => {
         body: JSON.stringify({ userRequest: "Please check invoice INV-1001" })
       })
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/agent/traces/trace-123");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/ABC Logistics/)).toBeInTheDocument();
 
+    const actions = screen.getByRole("article", { name: /actions/i });
+    expect(
+      within(actions).getByRole("button", { name: /invoice_lookup success/i })
+    ).toBeInTheDocument();
+    expect(
+      within(actions).getByRole("button", { name: /policy_lookup success/i })
+    ).toBeInTheDocument();
+
+    await userEvent.click(within(actions).getByRole("button", { name: /invoice_lookup success/i }));
+    expect(screen.getByText(/Selected action/)).toBeInTheDocument();
+    expect(within(actions).getByText(/trace-123/)).toBeInTheDocument();
+    expect(within(actions).getByText(/step-001/)).toBeInTheDocument();
+    expect(screen.queryByText(/PO_AMOUNT_MISMATCH/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /query execution trace/i }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/agent/traces/trace-123");
+
     const trace = screen.getByRole("region", { name: /execution trace/i });
-    expect(within(trace).getByText("invoice_lookup")).toBeInTheDocument();
+    expect(await within(trace).findByText("invoice_lookup")).toBeInTheDocument();
     expect(within(trace).getByText("policy_lookup")).toBeInTheDocument();
     expect(within(trace).getByText(/8 ms/)).toBeInTheDocument();
+    expect(within(trace).getByText(/PO_AMOUNT_MISMATCH/)).toBeInTheDocument();
   });
 
   test("shows structured API errors clearly and keeps actions visible", async () => {
     const notFoundResponse = {
       status: "failed",
       finalAnswer: "Invoice INV-9999 was not found.",
-      actions: [{ type: "invoice_lookup", status: "failed" }],
+      actions: [
+        { type: "invoice_lookup", status: "failed", traceId: "trace-404", stepId: "step-001" }
+      ],
       traceId: "trace-404",
       error: {
         errorCode: "INVOICE_NOT_FOUND",

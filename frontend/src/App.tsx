@@ -3,6 +3,8 @@ import { FormEvent, useState } from "react";
 type AgentAction = {
   type: string;
   status: string;
+  traceId?: string;
+  stepId?: string;
 };
 
 type AgentError = {
@@ -47,8 +49,10 @@ export default function App() {
   const [userRequest, setUserRequest] = useState("");
   const [result, setResult] = useState<AgentRunResponse | null>(null);
   const [trace, setTrace] = useState<AgentTrace | null>(null);
+  const [selectedAction, setSelectedAction] = useState<AgentAction | null>(null);
   const [uiError, setUiError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTraceLoading, setIsTraceLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,6 +62,7 @@ export default function App() {
       setUiError("Enter a request that includes an invoice ID, such as INV-1001.");
       setResult(null);
       setTrace(null);
+      setSelectedAction(null);
       return;
     }
 
@@ -65,6 +70,7 @@ export default function App() {
     setUiError(null);
     setResult(null);
     setTrace(null);
+    setSelectedAction(null);
 
     try {
       const runResponse = await fetch("/agent/run", {
@@ -74,17 +80,32 @@ export default function App() {
       });
       const runData = (await runResponse.json()) as AgentRunResponse;
       setResult(runData);
-
-      if (runData.traceId && runResponse.ok) {
-        const traceResponse = await fetch(`/agent/traces/${runData.traceId}`);
-        if (traceResponse.ok) {
-          setTrace((await traceResponse.json()) as AgentTrace);
-        }
-      }
     } catch {
       setUiError("The finance agent API is unavailable. Check that the backend is running.");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleTraceQuery() {
+    if (!result?.traceId) {
+      return;
+    }
+
+    setIsTraceLoading(true);
+    setUiError(null);
+
+    try {
+      const traceResponse = await fetch(`/agent/traces/${result.traceId}`);
+      if (!traceResponse.ok) {
+        setUiError("The execution trace could not be loaded.");
+        return;
+      }
+      setTrace((await traceResponse.json()) as AgentTrace);
+    } catch {
+      setUiError("The execution trace could not be loaded.");
+    } finally {
+      setIsTraceLoading(false);
     }
   }
 
@@ -161,23 +182,45 @@ export default function App() {
               <p className="mt-4 text-xs text-slate-500">Trace ID: {result.traceId}</p>
             </article>
 
-            <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <article
+              aria-label="Actions"
+              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+            >
               <h2 className="text-lg font-semibold">Actions</h2>
               <ul className="mt-3 space-y-2">
                 {result.actions.map((action) => (
                   <li
-                    className="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 text-sm"
-                    key={`${action.type}-${action.status}`}
+                    className="rounded-md bg-slate-50 text-sm"
+                    key={`${action.type}-${action.status}-${action.stepId ?? action.type}`}
                   >
-                    <span className="font-medium text-slate-800">{action.type}</span>
-                    <span
-                      className={action.status === "success" ? "text-emerald-700" : "text-red-700"}
+                    <button
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+                      type="button"
+                      onClick={() => setSelectedAction(action)}
                     >
-                      {action.status}
-                    </span>
+                      <span className="font-medium text-slate-800">{action.type}</span>
+                      <span
+                        className={
+                          action.status === "success" ? "text-emerald-700" : "text-red-700"
+                        }
+                      >
+                        {action.status}
+                      </span>
+                    </button>
                   </li>
                 ))}
               </ul>
+              {selectedAction ? (
+                <div className="mt-4 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-xs leading-5 text-cyan-950">
+                  <p className="font-semibold">Selected action</p>
+                  <p>Trace ID: {selectedAction.traceId ?? result.traceId}</p>
+                  <p>Step ID: {selectedAction.stepId ?? "Not provided"}</p>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-slate-500">
+                  Select an action to view its trace and step identifiers.
+                </p>
+              )}
             </article>
           </section>
         ) : null}
@@ -189,9 +232,20 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Execution trace</h2>
             <span className="text-xs text-slate-500">
-              {trace ? `${trace.steps.length} steps` : "Run the agent to load trace details"}
+              {trace ? `${trace.steps.length} steps` : "Query the trace to load details"}
             </span>
           </div>
+
+          {result?.traceId ? (
+            <button
+              className="mt-4 inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:text-slate-400"
+              type="button"
+              onClick={handleTraceQuery}
+              disabled={isTraceLoading}
+            >
+              {isTraceLoading ? "Querying..." : "Query execution trace"}
+            </button>
+          ) : null}
 
           {trace ? (
             <ol className="mt-4 space-y-3">
@@ -201,7 +255,7 @@ export default function App() {
             </ol>
           ) : (
             <p className="mt-3 text-sm text-slate-600">
-              The trace will show selected tools, inputs, outputs, status, timing, and errors.
+              Tool inputs and outputs stay hidden until you query this trace.
             </p>
           )}
         </section>
@@ -217,7 +271,7 @@ function TraceStepItem({ step }: { step: TraceStep }) {
         <div>
           <p className="text-sm font-semibold text-slate-900">{step.toolName ?? step.stepName}</p>
           <p className="text-xs text-slate-500">
-            {step.stepId} • {step.durationMs} ms • {step.status}
+            {step.stepId} - {step.durationMs} ms - {step.status}
           </p>
         </div>
         {step.error ? (

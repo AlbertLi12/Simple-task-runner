@@ -68,7 +68,15 @@ class AgentRunner:
                 lambda name=tool_name, data=tool_input: self.registry.execute(name, data),
             )
             status = "failed" if isinstance(output, dict) and output.get("error") else "success"
-            actions.append({"type": tool_name, "status": status})
+            recorded_step = recorder.trace.steps[-1]
+            actions.append(
+                {
+                    "type": tool_name,
+                    "status": status,
+                    "traceId": recorder.trace.traceId,
+                    "stepId": recorded_step.stepId,
+                }
+            )
 
             stop_result = self._observe_tool_result(tool_name, output, context, recorder, actions)
             if stop_result:

@@ -19,5 +19,12 @@
     "currency": "EUR",
     "owner": "peter.mueller@example.com",
     "status": "closed"
+  },
+  {
+    "poId": "PO-9004",
+    "amount": 15000,
+    "currency": "USD",
+    "owner": "lisa.wong@example.com",
+    "status": "active"
   }
 ]

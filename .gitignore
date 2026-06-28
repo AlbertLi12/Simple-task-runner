@@ -60,3 +60,6 @@ Thumbs.db
 
 # Ignore local Word documents
 *.docx
+
+# Architecture description file
+ARCHITECTURE.md
