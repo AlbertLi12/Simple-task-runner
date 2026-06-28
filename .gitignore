@@ -1,14 +1,62 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python environments
 .env
+.env.*
+!.env.example
 .venv/
 venv/
+env/
+ENV/
+.conda/
+
+# Backend runtime artifacts
+*.log
+logs/
+trace-*.json
+traces/
+backend/traces/
+
+# Node / frontend
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+coverage/
+**/coverage/
+*.tsbuildinfo
+.vite/
+**/.vite/
+
+# Build and package output
+build/
+**/build/
+*.egg-info/
+
+# Docker / local overrides
+docker-compose.override.yml
+
+# Editors and operating systems
 .idea/
 .vscode/
 .DS_Store
+Thumbs.db
 
-# Ignore all Word documents
+# Agent planning artifacts
+.agents/
+.codex/
+
+# Local source requirement and prompt artifacts
+/codexdoc/
+
+# Ignore local Word documents
 *.docx
-
-# Ignore all codexdoc files
-/codexdoc
