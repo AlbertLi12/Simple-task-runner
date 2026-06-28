@@ -76,6 +76,7 @@ class TraceRecorder:
             return {"error": error}
         finally:
             duration_ms = int((perf_counter() - start) * 1000)
+            # Store structured evidence for trace retrieval and engineering review.
             self.trace.steps.append(
                 TraceStep(
                     stepId=f"step-{step_number:03d}",

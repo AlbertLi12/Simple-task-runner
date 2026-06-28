@@ -48,6 +48,7 @@ class AgentRunner:
         recorder = TraceRecorder(user_request, context.goal)
         actions: list[dict[str, str]] = []
 
+        # Validate the request before any tool is called.
         invoice_id, parse_error = self.planner.parse_invoice_id(user_request)
         if parse_error:
             answer = parse_error.message
@@ -59,6 +60,7 @@ class AgentRunner:
 
         context.invoice_id = invoice_id
 
+        # Execute one planned tool at a time so each observation can change the next step.
         while True:
             next_steps = self.planner.next_tools(context)
             if not next_steps:
@@ -72,6 +74,7 @@ class AgentRunner:
             )
             status = "failed" if isinstance(output, dict) and output.get("error") else "success"
             recorded_step = recorder.trace.steps[-1]
+            # Expose lightweight action metadata without leaking tool inputs or outputs.
             actions.append(
                 {
                     "type": tool_name,
@@ -86,6 +89,7 @@ class AgentRunner:
                 self.traces[stop_result.trace_id] = recorder.trace
                 return stop_result
 
+        # Build the business-readable recommendation after the context has all observations.
         final_answer = self._build_final_answer(context)
         trace = recorder.finish(final_answer)
         self.traces[trace.traceId] = trace
@@ -152,6 +156,7 @@ class AgentRunner:
         if tool_name == "policy_lookup" and error.errorCode == "POLICY_NOT_FOUND":
             invoice = context.observations.get("invoice", {})
             po = context.observations.get("po", {})
+            # Finance can still act on invoice and PO facts when policy lookup is unavailable.
             answer = (
                 f"Invoice {invoice.get('invoiceId')} for {invoice.get('vendor')} is not paid yet "
                 f"because it is {self._human_status(invoice)}. PO owner: {po.get('owner', 'unknown')}. "

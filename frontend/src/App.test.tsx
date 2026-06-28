@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import App from "./App";
 
+// Mock successful PO amount mismatch response with actions, trace IDs, and an editable email draft.
 const successResponse = {
   status: "completed",
   finalAnswer:
@@ -22,6 +23,7 @@ const successResponse = {
   }
 };
 
+// Mock trace payload used to verify that tool input and output appear only after trace lookup.
 const traceResponse = {
   traceId: "trace-123",
   userInput: "Please check invoice INV-1001",
@@ -59,6 +61,7 @@ afterEach(() => {
 });
 
 describe("Finance agent frontend", () => {
+  // Tests the main successful UI flow, action summaries, editable draft fields, and explicit trace loading.
   test("shows action statuses immediately and loads trace details only when requested", async () => {
     const fetchMock = vi
       .fn()
@@ -68,10 +71,10 @@ describe("Finance agent frontend", () => {
 
     render(<App />);
     await userEvent.type(
-      screen.getByLabelText(/finance request/i),
+      screen.getByLabelText(/finance request|what is your request/i),
       "Please check invoice INV-1001"
     );
-    await userEvent.click(screen.getByRole("button", { name: /run agent/i }));
+    await userEvent.click(screen.getByRole("button", { name: /run agent|ask agent/i }));
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -101,6 +104,10 @@ describe("Finance agent frontend", () => {
     await userEvent.clear(within(emailDraft).getByLabelText(/^body$/i));
     await userEvent.type(within(emailDraft).getByLabelText(/^body$/i), "Can you amend the PO?");
 
+    const sendButton = within(emailDraft).getByRole("button", { name: /send/i });
+    expect(sendButton).toBeInTheDocument();
+    await userEvent.click(sendButton);
+
     expect(within(emailDraft).getByLabelText(/^to$/i)).toHaveValue("owner@example.com");
     expect(within(emailDraft).getByLabelText(/^subject$/i)).toHaveValue("Please review INV-1001");
     expect(within(emailDraft).getByLabelText(/^body$/i)).toHaveValue("Can you amend the PO?");
@@ -119,7 +126,9 @@ describe("Finance agent frontend", () => {
     expect(within(actions).getByText(/step-001/)).toBeInTheDocument();
     expect(screen.queryByText(/PO_AMOUNT_MISMATCH/)).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /query execution trace/i }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /query execution trace|show trace details/i })
+    );
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/agent/traces/trace-123");
 
     const trace = screen.getByRole("region", { name: /execution trace/i });
@@ -129,6 +138,7 @@ describe("Finance agent frontend", () => {
     expect(within(trace).getByText(/PO_AMOUNT_MISMATCH/)).toBeInTheDocument();
   });
 
+  // Tests that structured backend errors are readable while failed action metadata remains visible.
   test("shows structured API errors clearly and keeps actions visible", async () => {
     const notFoundResponse = {
       status: "failed",
@@ -149,10 +159,14 @@ describe("Finance agent frontend", () => {
     );
 
     render(<App />);
-    await userEvent.type(screen.getByLabelText(/finance request/i), "Check INV-9999");
-    await userEvent.click(screen.getByRole("button", { name: /run agent/i }));
+    await userEvent.type(
+      screen.getByLabelText(/finance request|what is your request/i),
+      "Check INV-9999"
+    );
+    await userEvent.click(screen.getByRole("button", { name: /run agent|ask agent/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("INVOICE_NOT_FOUND");
+    expect(screen.queryByText(/Recoverable:/i)).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("article", { name: /final answer/i })).getByText(
         /Invoice INV-9999 was not found/
@@ -161,6 +175,7 @@ describe("Finance agent frontend", () => {
     expect(screen.getByText("invoice_lookup")).toBeInTheDocument();
   });
 
+  // Tests that approval-pending responses do not render the email draft block.
   test("does not show an email draft when the backend does not return one", async () => {
     const pendingApprovalResponse = {
       status: "completed",
@@ -175,25 +190,30 @@ describe("Finance agent frontend", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse(pendingApprovalResponse)));
 
     render(<App />);
-    await userEvent.type(screen.getByLabelText(/finance request/i), "Check INV-1002");
-    await userEvent.click(screen.getByRole("button", { name: /run agent/i }));
+    await userEvent.type(
+      screen.getByLabelText(/finance request|what is your request/i),
+      "Check INV-1002"
+    );
+    await userEvent.click(screen.getByRole("button", { name: /run agent|ask agent/i }));
 
     expect(await screen.findByText(/pending approval/i)).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /email draft/i })).not.toBeInTheDocument();
   });
 
+  // Tests the frontend-only empty request guard before any API call is made.
   test("prevents empty submissions before calling the backend", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await userEvent.click(screen.getByRole("button", { name: /run agent/i }));
+    await userEvent.click(screen.getByRole("button", { name: /run agent|ask agent/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/enter a request/i);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
+// Builds the minimal Response shape needed by the component tests.
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return {
     ok,

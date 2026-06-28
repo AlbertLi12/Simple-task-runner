@@ -20,6 +20,7 @@ class DraftEmailTool:
         if invoice.get("blockReason") == "PO_AMOUNT_MISMATCH":
             subject_reason = "PO amount mismatch"
 
+        # The tool only drafts a message; sending remains a user decision.
         return {
             "to": owner,
             "subject": f"Action needed: {subject_reason} for {invoice_id}",

@@ -11,6 +11,7 @@ type EmailDraftProps = {
 };
 
 export default function EmailDraft({ email }: EmailDraftProps) {
+  // Keep edits local because the prototype drafts email but never sends it.
   const [draft, setDraft] = useState(email);
 
   return (
@@ -68,6 +69,14 @@ export default function EmailDraft({ email }: EmailDraftProps) {
             value={draft.body}
             onChange={(event) => setDraft({ ...draft, body: event.target.value })}
           />
+        </div>
+        <div className="flex justify-end pt-1">
+          <button
+            className="inline-flex min-h-10 items-center justify-center rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+            type="button"
+          >
+            Send
+          </button>
         </div>
       </div>
     </section>

@@ -28,9 +28,11 @@ class RuleBasedPlanner:
         invoice = context.observations.get("invoice")
         po = context.observations.get("po")
 
+        # Always identify the invoice before deciding whether PO or policy data is needed.
         if invoice is None and context.invoice_id:
             return [("invoice_lookup", {"invoiceId": context.invoice_id})]
 
+        # Paid invoices stop early because no remediation workflow is needed.
         if invoice.get("status") == "paid":
             return []
 
@@ -46,6 +48,7 @@ class RuleBasedPlanner:
             and "policy" in context.observations
             and "draftEmail" not in context.observations
         ):
+            # Only PO amount mismatches require a draft to the PO owner.
             return [
                 (
                     "draft_email",

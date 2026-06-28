@@ -14,6 +14,7 @@ def action_types(response_json):
     return [action["type"] for action in response_json["actions"]]
 
 
+# Tests the full PO amount mismatch path, including PO owner draft email generation.
 def test_inv_1001_is_blocked_by_po_amount_mismatch():
     response = run_agent(
         "Please check invoice INV-1001. Why is it not paid yet, and what should I do next?"
@@ -43,6 +44,7 @@ def test_inv_1001_is_blocked_by_po_amount_mismatch():
     assert "This is only a draft and has not been sent." in body["draftEmail"]["body"]
 
 
+# Tests the approval-pending path where policy guidance is needed but no email draft is created.
 def test_inv_1002_is_pending_approval():
     response = run_agent("Why is INV-1002 not paid?")
 
@@ -55,6 +57,7 @@ def test_inv_1002_is_pending_approval():
     assert "draftEmail" not in body
 
 
+# Tests that paid invoices stop after invoice lookup and require no further action.
 def test_inv_1003_is_paid_without_policy_lookup():
     response = run_agent("Please check invoice INV-1003")
 
@@ -66,6 +69,7 @@ def test_inv_1003_is_paid_without_policy_lookup():
     assert action_types(body) == ["invoice_lookup"]
 
 
+# Tests that an unknown invoice stops the workflow after the failed invoice lookup.
 def test_invoice_not_found_stops_after_invoice_lookup():
     response = run_agent("Please check invoice INV-9999")
 
@@ -77,6 +81,7 @@ def test_invoice_not_found_stops_after_invoice_lookup():
     assert action_types(body) == ["invoice_lookup"]
 
 
+# Tests that requests without an invoice ID ask for more input and call no tools.
 def test_missing_invoice_id_does_not_call_tools():
     response = run_agent("Please check why this invoice is not paid")
 
@@ -87,6 +92,7 @@ def test_missing_invoice_id_does_not_call_tools():
     assert body["actions"] == []
 
 
+# Tests that an empty request is handled as a missing invoice ID.
 def test_empty_user_request_is_missing_invoice_id():
     response = run_agent("")
 
@@ -97,6 +103,7 @@ def test_empty_user_request_is_missing_invoice_id():
     assert body["actions"] == []
 
 
+# Tests that malformed invoice IDs return a validation error before tools run.
 def test_invalid_invoice_format_returns_validation_error():
     response = run_agent("Please check invoice INV-ABC")
 
@@ -107,6 +114,7 @@ def test_invalid_invoice_format_returns_validation_error():
     assert body["actions"] == []
 
 
+# Tests that lowercase invoice IDs are normalized before tool execution.
 def test_lowercase_invoice_id_is_normalized():
     response = run_agent("please check invoice inv-1001")
 
@@ -116,6 +124,7 @@ def test_lowercase_invoice_id_is_normalized():
     assert body["traceId"]
 
 
+# Tests that extra whitespace does not prevent invoice ID extraction.
 def test_extra_spaces_in_request_are_handled():
     response = run_agent("   Please   check   invoice    INV-1002    ")
 
@@ -125,6 +134,7 @@ def test_extra_spaces_in_request_are_handled():
     assert "Global Parts Ltd." in body["finalAnswer"]
 
 
+# Tests that policy lookup failures return a partial answer using available invoice and PO facts.
 def test_policy_lookup_failure_returns_partial_answer(monkeypatch):
     from backend.tools.registry import build_default_registry
 
@@ -143,6 +153,7 @@ def test_policy_lookup_failure_returns_partial_answer(monkeypatch):
     assert action_types(body) == ["invoice_lookup", "po_lookup", "policy_lookup"]
 
 
+# Tests the data-driven policy-not-found path for an invoice with an unknown block reason.
 def test_blocked_invoice_with_unknown_policy_returns_partial_answer():
     response = run_agent("Please check invoice INV-1004")
 
@@ -156,6 +167,7 @@ def test_blocked_invoice_with_unknown_policy_returns_partial_answer():
     assert action_types(body) == ["invoice_lookup", "po_lookup", "policy_lookup"]
 
 
+# Tests that unexpected tool output shapes become structured tool execution failures.
 def test_unexpected_tool_result_is_tool_execution_failure(monkeypatch):
     from backend.tools.registry import build_default_registry
 
@@ -176,6 +188,7 @@ def test_unexpected_tool_result_is_tool_execution_failure(monkeypatch):
     assert body["error"]["errorCode"] == "TOOL_EXECUTION_FAILURE"
 
 
+# Tests that saved traces expose the structured step-by-step tool execution history.
 def test_trace_endpoint_returns_structured_steps():
     run_response = run_agent("Please check invoice INV-1001")
     trace_id = run_response.json()["traceId"]
@@ -197,6 +210,7 @@ def test_trace_endpoint_returns_structured_steps():
     assert all("durationMs" in step for step in trace["steps"])
 
 
+# Tests that run responses include trace and step identifiers for frontend action drill-down.
 def test_run_response_actions_include_trace_and_step_ids():
     response = run_agent("Please check invoice INV-1001")
 

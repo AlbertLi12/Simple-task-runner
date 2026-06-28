@@ -61,6 +61,7 @@ export default function App() {
     event.preventDefault();
     const trimmedRequest = userRequest.trim();
 
+    // Prevent empty requests from reaching the agent API.
     if (!trimmedRequest) {
       setUiError("Enter a request that includes an invoice ID, such as INV-1001.");
       setResult(null);
@@ -99,6 +100,7 @@ export default function App() {
     setUiError(null);
 
     try {
+      // Trace details are loaded only after the user explicitly asks for them.
       const traceResponse = await fetch(`/agent/traces/${result.traceId}`);
       if (!traceResponse.ok) {
         setUiError("The execution trace could not be loaded.");
@@ -121,21 +123,20 @@ export default function App() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <header className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-wide text-cyan-700">
-            Finance Operations
+           Demo Finance Agent
           </p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
             Invoice payment investigator
           </h1>
           <p className="max-w-2xl text-sm leading-6 text-slate-600">
-            Ask why an invoice has not been paid yet. The agent will call the backend tools and show
-            both the business answer and the structured execution trace.
+            Ask the agent to investigate the status of an invoice payment.
           </p>
         </header>
 
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <form className="space-y-4" onSubmit={handleSubmit}>
             <label htmlFor="finance-request" className="block text-sm font-medium text-slate-800">
-              Finance request
+              What is your request? (Include a valid invoice ID)
             </label>
             <textarea
               id="finance-request"
@@ -149,7 +150,7 @@ export default function App() {
               type="submit"
               disabled={isLoading}
             >
-              {isLoading ? "Running..." : "Run agent"}
+              {isLoading ? "Running..." : "Ask agent"}
             </button>
           </form>
         </section>
@@ -161,11 +162,6 @@ export default function App() {
           >
             <h2 className="font-semibold">Error</h2>
             <p className="mt-1">{displayedError}</p>
-            {result?.error ? (
-              <p className="mt-2 text-red-800">
-                Recoverable: {result.error.recoverable ? "Yes" : "No"}
-              </p>
-            ) : null}
           </section>
         ) : null}
 
@@ -215,6 +211,7 @@ export default function App() {
               </ul>
               {selectedAction ? (
                 <div className="mt-4 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-xs leading-5 text-cyan-950">
+                  {/* Action clicks reveal identifiers, not tool payloads. */}
                   <p className="font-semibold">Selected action</p>
                   <p>Trace ID: {selectedAction.traceId ?? result.traceId}</p>
                   <p>Step ID: {selectedAction.stepId ?? "Not provided"}</p>
@@ -248,7 +245,7 @@ export default function App() {
               onClick={handleTraceQuery}
               disabled={isTraceLoading}
             >
-              {isTraceLoading ? "Querying..." : "Query execution trace"}
+              {isTraceLoading ? "Querying..." : "Show trace details"}
             </button>
           ) : null}
 
@@ -260,7 +257,7 @@ export default function App() {
             </ol>
           ) : (
             <p className="mt-3 text-sm text-slate-600">
-              Tool inputs and outputs stay hidden until you query this trace.
+              Tool inputs and outputs stay hidden until you query the trace.
             </p>
           )}
         </section>

@@ -1,43 +1,45 @@
-# Finance Operations Invoice Agent
+# A prototype of an **AI Agent Task Runner** 
 
-This project is a prototype of AI Agent Task Runner for a finance operations scenario.
+This repository is a full-stack prototype of an AI Agent Task Runner for invoice investigation. A user can ask why an invoice has not been paid, and the app runs a deterministic agent workflow that looks up invoice data, checks the related purchase order and policy, records a structured execution trace, and returns business-readable result and recommendation.
 
-When a finance operations user wants to investigate invoice payment status:
+Example request:
 
-> "Please check invoice INV-1001. Why is it not paid yet, and what should I do next?"
+```text
+Please check invoice INV-1001. Why is it not paid yet, and what should I do next?
+```
 
-The application extracts the invoice ID, runs a agent plan, calls registered tools, records a structured execution trace, and returns a business-readable recommendation for the finance user.
+The implementation intentionally does not call a real LLM API. The planner is rule-based so the behavior is deterministic and easy to test.
 
-This prototype covers that workflow with mock JSON data:
+## Current Features
 
-- `INV-1001`: blocked because the invoice amount is higher than the PO amount.
-- `INV-1002`: pending approval.
-- `INV-1003`: already paid.
-- Missing, invalid, and unknown invoice IDs return structured errors.
+- FastAPI backend with RESTful API design for running the agent and fetching traces.
+- Tool registry with `invoice_lookup`, `po_lookup`, `policy_lookup`, and `draft_email`.
+- Dynamic planning: the agent only calls tools needed for the invoice state.
+- Structured trace steps with input, output, status, errors, timestamps, and durations.
+- Frontend action list that shows each tool call status.
+- Trace details are shown only after the user clicks `Show trace details`.
+- PO amount mismatch generates an editable email draft with `to`, `subject`, and `body`.
+- Dockerfiles and Docker Compose for running backend and frontend together.
 
-## Overview
+## Screenshot
 
-The backend exposes a REST API powered by FastAPI. The agent uses a rule-based planner instead of a real LLM API. Tool execution goes through a `ToolRegistry`, and every tool call is stored in a structured trace with inputs, outputs, timestamps, durations, statuses, and errors.
-
-The frontend is a minimal React/Vite interface where a user can submit a finance request, read the final answer, inspect the executed actions, and review the full execution trace.
+![Invoice payment investigator showing final answer, action statuses, email draft, and queried trace](docs/screenshots/invoice-agent-main.png)
 
 ## Tech Stack
 
-- Backend: Python, FastAPI, Pydantic
-- Agent: rule-based planner, tool registry, structured trace recorder
-- Data storage: mock JSON files
-- Frontend: React, TypeScript, Vite, TailwindCSS
-- API style: REST
-- Backend tests: Pytest, FastAPI TestClient
-- Frontend tests: Vitest, React Testing Library
-- Code quality: ESLint, Prettier
-- DevOps: Docker and Docker Compose
+| Area | Stack |
+| --- | --- |
+| Backend | Python, FastAPI, Pydantic |
+| Data Storage | Mock JSON files, in-memory storage |
+| Frontend | React, TypeScript, Vite, TailwindCSS |
+| Tests | Pytest, FastAPI TestClient, Vitest, React Testing Library |
+| Code Quality | ESLint, Prettier |
+| DevOps | Docker, Docker Compose, Nginx |
 
 ## Project Structure
 
 ```text
 backend/
-  Dockerfile
   api/routes.py
   agent/
     context.py
@@ -58,27 +60,67 @@ backend/
     policy_lookup.py
     po_lookup.py
     registry.py
+  Dockerfile
   main.py
 frontend/
-  Dockerfile
-  nginx.conf
   src/
     App.test.tsx
     App.tsx
+    EmailDraft.tsx
     main.tsx
     setupTests.ts
     styles.css
+  Dockerfile
+  nginx.conf
 docs/
   screenshots/invoice-agent-main.png
 docker-compose.yml
 requirements.txt
 ```
 
+## Mock Data
+
+The backend reads mock JSON files from `backend/data`.
+
+| Invoice | State | Expected Behavior |
+| --- | --- | --- |
+| `INV-1001` | Blocked, `PO_AMOUNT_MISMATCH` | Calls invoice, PO, policy, and draft email tools. |
+| `INV-1002` | Pending approval, `APPROVAL_PENDING` | Calls invoice, PO, and policy tools. No email draft. |
+| `INV-1003` | Paid | Stops after invoice lookup. No policy lookup. |
+| `INV-1004` | Blocked, unknown policy | Returns a partial answer with `POLICY_NOT_FOUND`. |
+
+Required purchase orders and policies from the product brief are included, plus `PO-9004` for the policy-not-found test path.
+
+## Agent Behavior
+
+The agent flow is:
+
+```text
+User request
+-> Parse and validate invoice ID
+-> Plan the next tool call
+-> Execute the tool through ToolRegistry
+-> Record the tool result in the trace
+-> Update agent context
+-> Continue, stop, or return a structured error
+-> Build the final business answer
+```
+
+Important dynamic behavior:
+
+- Missing invoice ID: returns `needs_input` and does not call tools.
+- Invalid invoice ID format: returns `INVALID_INVOICE_ID` and does not call tools.
+- Invoice not found: returns `INVOICE_NOT_FOUND` after `invoice_lookup`.
+- Paid invoice: returns no-further-action guidance after `invoice_lookup`.
+- Blocked invoice with PO: calls `invoice_lookup`, `po_lookup`, and `policy_lookup`.
+- PO amount mismatch: also calls `draft_email`.
+- Policy not found: returns `partial` with the invoice and PO facts that are available.
+
 ## Backend API
 
 ### `POST /agent/run`
 
-Runs the finance agent for a user request.
+Runs the finance agent.
 
 Request:
 
@@ -88,29 +130,43 @@ Request:
 }
 ```
 
-Success response:
+Success response shape:
 
 ```json
 {
   "status": "completed",
   "finalAnswer": "Invoice INV-1001 for ABC Logistics is not paid yet because it is blocked because the invoice amount is higher than the PO amount...",
   "actions": [
-    { "type": "invoice_lookup", "status": "success" },
-    { "type": "po_lookup", "status": "success" },
-    { "type": "policy_lookup", "status": "success" },
-    { "type": "draft_email", "status": "success" }
+    {
+      "type": "invoice_lookup",
+      "status": "success",
+      "traceId": "trace-...",
+      "stepId": "step-001"
+    }
   ],
-  "traceId": "trace-..."
+  "traceId": "trace-...",
+  "draftEmail": {
+    "to": "john.smith@example.com",
+    "subject": "Action needed: PO amount mismatch for INV-1001",
+    "body": "Hi John,\n\nI hope you are well..."
+  }
 }
 ```
 
-Error response example:
+Errors are structured:
 
 ```json
 {
   "status": "failed",
   "finalAnswer": "Invoice INV-9999 was not found.",
-  "actions": [{ "type": "invoice_lookup", "status": "failed" }],
+  "actions": [
+    {
+      "type": "invoice_lookup",
+      "status": "failed",
+      "traceId": "trace-...",
+      "stepId": "step-001"
+    }
+  ],
   "traceId": "trace-...",
   "error": {
     "errorCode": "INVOICE_NOT_FOUND",
@@ -120,35 +176,32 @@ Error response example:
 }
 ```
 
-Important status behavior:
+Supported statuses:
 
 - `completed`: full answer was generated.
 - `partial`: policy lookup failed, but invoice and PO context were available.
-- `needs_input`: request did not include an invoice ID.
-- `failed`: invalid invoice format, invoice not found, or tool execution failure.
+- `needs_input`: the request did not include an invoice ID.
+- `failed`: validation, lookup, or tool execution failure.
 
 ### `GET /agent/traces/{traceId}`
 
 Returns the full structured trace for a previous run.
 
-Trace response includes:
-
-- `traceId`
-- `userInput`
-- `goal`
-- `finalAnswer`
-- `error`
-- `steps`
-
-Each trace step includes:
+Each step includes:
 
 ```json
 {
   "stepId": "step-001",
   "stepName": "invoice_lookup",
   "toolName": "invoice_lookup",
-  "input": { "invoiceId": "INV-1001" },
-  "output": { "status": "blocked", "blockReason": "PO_AMOUNT_MISMATCH" },
+  "input": {
+    "invoiceId": "INV-1001"
+  },
+  "output": {
+    "invoiceId": "INV-1001",
+    "status": "blocked",
+    "blockReason": "PO_AMOUNT_MISMATCH"
+  },
   "status": "success",
   "error": null,
   "startedAt": "2026-06-28T10:00:00Z",
@@ -156,38 +209,23 @@ Each trace step includes:
 }
 ```
 
-## Frontend Usage
+Traces are currently stored in memory on the backend process. Restarting the backend clears existing trace IDs.
 
-Start the backend and frontend, then open:
+## Frontend Behavior
 
-```text
-http://127.0.0.1:5173
-```
+The frontend provides:
 
-Use the page as follows:
+- A request text area and `Ask agent` submit button.
+- A final answer panel with run status and trace ID.
+- An Actions panel showing tool name and success/failure status.
+- Action click behavior that reveals trace ID and step ID only.
+- An editable Email draft panel for PO amount mismatch cases.
+- An Execution trace panel where tool inputs and outputs remain hidden until `Show trace details` is clicked.
+- Clear error display for structured backend errors and empty frontend submissions.
 
-1. Enter a finance request in the text box, for example:
+## Local Development
 
-   ```text
-   Please check invoice INV-1001. Why is it not paid yet, and what should I do next?
-   ```
-
-2. Click **Run agent**.
-3. Read the final business answer.
-4. Review the action list to see which tools were called.
-5. Inspect the execution trace to see tool inputs, outputs, statuses, timing, and errors.
-
-### Page Screenshot
-
-![Invoice payment investigator screenshot](docs/screenshots/invoice-agent-main.png)
-
-## Local Backend Debugging
-
-Create or activate the conda environment:
-
-```powershell
-conda activate agentrunner
-```
+### Backend
 
 Install dependencies:
 
@@ -201,7 +239,7 @@ Run the API:
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Try the main endpoint:
+Try the run endpoint:
 
 ```powershell
 Invoke-WebRequest `
@@ -211,13 +249,7 @@ Invoke-WebRequest `
   -Body '{"userRequest":"Please check invoice INV-1001"}'
 ```
 
-Run backend tests:
-
-```powershell
-python -m pytest backend\tests
-```
-
-## Local Frontend Debugging
+### Frontend
 
 Install dependencies:
 
@@ -226,97 +258,72 @@ cd frontend
 npm install
 ```
 
-Run the Vite dev server:
+Run the dev server:
 
 ```powershell
 npm run dev
 ```
 
-The Vite config proxies `/agent` API calls to:
-
-```text
-http://127.0.0.1:8000
-```
-
-Build the frontend:
-
-```powershell
-npm run build
-```
-
-Run frontend tests:
-
-```powershell
-npm test
-```
-
-Run lint and formatting checks:
-
-```powershell
-npm run lint
-npm run format
-```
-
-## Docker and Docker Compose
-
-The repository includes Docker files for both services:
-
-- `backend/Dockerfile`: builds the FastAPI service with Python and runs Uvicorn on port `8000`.
-- `frontend/Dockerfile`: builds the React app with Node, serves it with Nginx, and exposes port `80` inside the container.
-- `frontend/nginx.conf`: serves the SPA and proxies `/agent/` requests to the backend service.
-- `docker-compose.yml`: starts `backend` and `frontend` together.
-
-From the repository root:
-
-```powershell
-docker compose up --build
-```
-
-Open the frontend:
+Open:
 
 ```text
 http://127.0.0.1:5173
 ```
 
-The Compose file maps:
+## Docker Compose
+
+Run both services from the repository root:
+
+```powershell
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5173
+```
+
+Compose services:
 
 | Service | Container | Host URL |
 | --- | --- | --- |
 | Frontend | `finance-agent-frontend` | `http://127.0.0.1:5173` |
 | Backend | `finance-agent-backend` | `http://127.0.0.1:8000` |
 
-## Test Coverage
+## Testing and Quality Checks
 
-| Area | Command | Result |
-| --- | --- | --- |
-| Backend API tests | `python -m pytest backend\tests` | 12 passed |
-| Frontend component tests | `npm test` | 3 passed |
-| Frontend production build | `npm run build` | Passed |
-| Browser smoke flow | Playwright against local backend and Vite frontend | Passed; screenshot captured |
+Backend tests:
 
-Backend scenarios covered:
+```powershell
+python -m pytest backend\tests
+```
 
-- `INV-1001` blocked by PO amount mismatch.
-- `INV-1002` pending approval.
-- `INV-1003` already paid, no policy lookup.
-- `INV-9999` invoice not found.
-- Missing invoice ID.
-- Empty user request.
-- Invalid invoice format.
-- Lowercase invoice ID normalization.
-- Extra spaces in the request.
-- Simulated policy lookup failure.
-- Unexpected tool result.
-- Trace endpoint returns structured steps.
+Frontend tests:
 
-Frontend scenarios covered:
+```powershell
+cd frontend
+npm test
+```
 
-- Submitting a request displays the final answer and trace steps.
-- Structured API errors are shown clearly.
-- Empty submissions are blocked before calling the backend.
+Frontend build, lint, and formatting:
 
-## Notes and Limitations
+```powershell
+npm run build
+npm run lint
+npm run format
+```
 
-- The planner is intentionally deterministic and rule-based; it does not call a real LLM API.
-- Data is stored in mock JSON files, not a database.
-- The `draft_email` tool generates email content only; it does not send email.
+Current automated coverage:
+
+| Area | Coverage |
+| --- | --- |
+| Backend API | 14 tests covering success paths, dynamic planning, structured errors, trace lookup, draft email, and unexpected tool output. |
+| Frontend UI | 4 tests covering action summaries, explicit trace loading, editable email draft, structured errors, no-draft cases, and empty request prevention. |
+
+## Limitations
+
+- The planner is deterministic and rule-based, not powered by an LLM.
+- Data is mock JSON, not a database.
+- Trace storage is in memory only.
+- The `draft_email` tool creates draft content only; it never sends email.
