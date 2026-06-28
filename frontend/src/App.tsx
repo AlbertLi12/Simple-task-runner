@@ -1,5 +1,7 @@
 import { FormEvent, useState } from "react";
 
+import EmailDraft, { DraftEmail } from "./EmailDraft";
+
 type AgentAction = {
   type: string;
   status: string;
@@ -19,6 +21,7 @@ type AgentRunResponse = {
   actions: AgentAction[];
   traceId: string;
   error?: AgentError;
+  draftEmail?: DraftEmail;
 };
 
 type TraceStep = {
@@ -224,6 +227,8 @@ export default function App() {
             </article>
           </section>
         ) : null}
+
+        {result?.draftEmail ? <EmailDraft email={result.draftEmail} /> : null}
 
         <section
           aria-label="Execution trace"

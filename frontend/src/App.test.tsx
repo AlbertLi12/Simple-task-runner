@@ -14,7 +14,12 @@ const successResponse = {
     { type: "policy_lookup", status: "success", traceId: "trace-123", stepId: "step-003" },
     { type: "draft_email", status: "success", traceId: "trace-123", stepId: "step-004" }
   ],
-  traceId: "trace-123"
+  traceId: "trace-123",
+  draftEmail: {
+    to: "john.smith@example.com",
+    subject: "Action needed: PO amount mismatch for INV-1001",
+    body: "Hi John, invoice INV-1001 from ABC Logistics is blocked because the invoice amount is 12000 EUR while PO PO-9001 is 10000 EUR. Please confirm whether the PO should be amended before payment proceeds."
+  }
 };
 
 const traceResponse = {
@@ -77,7 +82,28 @@ describe("Finance agent frontend", () => {
       })
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText(/ABC Logistics/)).toBeInTheDocument();
+    const finalAnswer = await screen.findByRole("article", { name: /final answer/i });
+    expect(within(finalAnswer).getByText(/ABC Logistics/)).toBeInTheDocument();
+    const emailDraft = screen.getByRole("region", { name: /email draft/i });
+    expect(emailDraft).toBeInTheDocument();
+    expect(within(emailDraft).getByLabelText(/^to$/i)).toHaveValue("john.smith@example.com");
+    expect(within(emailDraft).getByLabelText(/^subject$/i)).toHaveValue(
+      "Action needed: PO amount mismatch for INV-1001"
+    );
+    expect(within(emailDraft).getByLabelText(/^body$/i)).toHaveValue(
+      successResponse.draftEmail.body
+    );
+
+    await userEvent.clear(within(emailDraft).getByLabelText(/^to$/i));
+    await userEvent.type(within(emailDraft).getByLabelText(/^to$/i), "owner@example.com");
+    await userEvent.clear(within(emailDraft).getByLabelText(/^subject$/i));
+    await userEvent.type(within(emailDraft).getByLabelText(/^subject$/i), "Please review INV-1001");
+    await userEvent.clear(within(emailDraft).getByLabelText(/^body$/i));
+    await userEvent.type(within(emailDraft).getByLabelText(/^body$/i), "Can you amend the PO?");
+
+    expect(within(emailDraft).getByLabelText(/^to$/i)).toHaveValue("owner@example.com");
+    expect(within(emailDraft).getByLabelText(/^subject$/i)).toHaveValue("Please review INV-1001");
+    expect(within(emailDraft).getByLabelText(/^body$/i)).toHaveValue("Can you amend the PO?");
 
     const actions = screen.getByRole("article", { name: /actions/i });
     expect(
@@ -133,6 +159,27 @@ describe("Finance agent frontend", () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText("invoice_lookup")).toBeInTheDocument();
+  });
+
+  test("does not show an email draft when the backend does not return one", async () => {
+    const pendingApprovalResponse = {
+      status: "completed",
+      finalAnswer: "Invoice INV-1002 is pending approval.",
+      actions: [
+        { type: "invoice_lookup", status: "success", traceId: "trace-456", stepId: "step-001" },
+        { type: "po_lookup", status: "success", traceId: "trace-456", stepId: "step-002" },
+        { type: "policy_lookup", status: "success", traceId: "trace-456", stepId: "step-003" }
+      ],
+      traceId: "trace-456"
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse(pendingApprovalResponse)));
+
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/finance request/i), "Check INV-1002");
+    await userEvent.click(screen.getByRole("button", { name: /run agent/i }));
+
+    expect(await screen.findByText(/pending approval/i)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /email draft/i })).not.toBeInTheDocument();
   });
 
   test("prevents empty submissions before calling the backend", async () => {

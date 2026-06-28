@@ -21,6 +21,7 @@ class AgentRunResult:
     trace_id: str
     error: AgentError | None = None
     http_status: int = 200
+    draft_email: dict[str, Any] | None = None
 
     def to_response(self) -> dict[str, Any]:
         response = {
@@ -29,6 +30,8 @@ class AgentRunResult:
             "actions": self.actions,
             "traceId": self.trace_id,
         }
+        if self.draft_email:
+            response["draftEmail"] = self.draft_email
         if self.error:
             response["error"] = self.error.to_dict()
         return response
@@ -86,7 +89,13 @@ class AgentRunner:
         final_answer = self._build_final_answer(context)
         trace = recorder.finish(final_answer)
         self.traces[trace.traceId] = trace
-        return AgentRunResult("completed", final_answer, actions, trace.traceId)
+        return AgentRunResult(
+            "completed",
+            final_answer,
+            actions,
+            trace.traceId,
+            draft_email=context.observations.get("draftEmail"),
+        )
 
     def get_trace(self, trace_id: str) -> ExecutionTrace | None:
         return self.traces.get(trace_id)

@@ -40,7 +40,12 @@ class RuleBasedPlanner:
         if invoice.get("blockReason") and "policy" not in context.observations:
             return [("policy_lookup", {"blockReason": invoice["blockReason"]})]
 
-        if po and "policy" in context.observations and "draftEmail" not in context.observations:
+        if (
+            po
+            and invoice.get("blockReason") == "PO_AMOUNT_MISMATCH"
+            and "policy" in context.observations
+            and "draftEmail" not in context.observations
+        ):
             return [
                 (
                     "draft_email",

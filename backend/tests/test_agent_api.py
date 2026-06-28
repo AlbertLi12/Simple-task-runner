@@ -31,6 +31,16 @@ def test_inv_1001_is_blocked_by_po_amount_mismatch():
         "policy_lookup",
         "draft_email",
     ]
+    assert body["draftEmail"]["to"] == "john.smith@example.com"
+    assert "INV-1001" in body["draftEmail"]["subject"]
+    assert "Hi John," in body["draftEmail"]["body"]
+    assert "I hope you are well." in body["draftEmail"]["body"]
+    assert "ABC Logistics" in body["draftEmail"]["body"]
+    assert "PO-9001" in body["draftEmail"]["body"]
+    assert "10000 EUR" in body["draftEmail"]["body"]
+    assert "12000 EUR" in body["draftEmail"]["body"]
+    assert "Could you please confirm whether PO PO-9001 should be amended" in body["draftEmail"]["body"]
+    assert "This is only a draft and has not been sent." in body["draftEmail"]["body"]
 
 
 def test_inv_1002_is_pending_approval():
@@ -41,12 +51,8 @@ def test_inv_1002_is_pending_approval():
     assert body["status"] == "completed"
     assert "pending approval" in body["finalAnswer"].lower()
     assert "mary.chen@example.com" in body["finalAnswer"]
-    assert action_types(body) == [
-        "invoice_lookup",
-        "po_lookup",
-        "policy_lookup",
-        "draft_email",
-    ]
+    assert action_types(body) == ["invoice_lookup", "po_lookup", "policy_lookup"]
+    assert "draftEmail" not in body
 
 
 def test_inv_1003_is_paid_without_policy_lookup():
