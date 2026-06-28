@@ -1,0 +1,12 @@
+[
+  {
+    "blockReason": "PO_AMOUNT_MISMATCH",
+    "policy": "If invoice amount is higher than PO amount, requester must confirm whether the PO should be amended before payment can proceed.",
+    "recommendedAction": "Contact PO owner for confirmation."
+  },
+  {
+    "blockReason": "APPROVAL_PENDING",
+    "policy": "If invoice approval is pending, payment cannot proceed until the responsible approver completes approval.",
+    "recommendedAction": "Remind the approver to complete approval."
+  }
+]

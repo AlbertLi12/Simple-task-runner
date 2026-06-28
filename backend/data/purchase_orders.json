@@ -1,0 +1,23 @@
+[
+  {
+    "poId": "PO-9001",
+    "amount": 10000,
+    "currency": "EUR",
+    "owner": "john.smith@example.com",
+    "status": "active"
+  },
+  {
+    "poId": "PO-9002",
+    "amount": 5000,
+    "currency": "USD",
+    "owner": "mary.chen@example.com",
+    "status": "active"
+  },
+  {
+    "poId": "PO-9003",
+    "amount": 800,
+    "currency": "EUR",
+    "owner": "peter.mueller@example.com",
+    "status": "closed"
+  }
+]

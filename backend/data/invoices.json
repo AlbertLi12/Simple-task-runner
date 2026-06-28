@@ -1,0 +1,29 @@
+[
+  {
+    "invoiceId": "INV-1001",
+    "vendor": "ABC Logistics",
+    "amount": 12000,
+    "currency": "EUR",
+    "status": "blocked",
+    "poId": "PO-9001",
+    "blockReason": "PO_AMOUNT_MISMATCH"
+  },
+  {
+    "invoiceId": "INV-1002",
+    "vendor": "Global Parts Ltd.",
+    "amount": 5000,
+    "currency": "USD",
+    "status": "pending_approval",
+    "poId": "PO-9002",
+    "blockReason": "APPROVAL_PENDING"
+  },
+  {
+    "invoiceId": "INV-1003",
+    "vendor": "Fast Office Supplies",
+    "amount": 800,
+    "currency": "EUR",
+    "status": "paid",
+    "poId": "PO-9003",
+    "blockReason": null
+  }
+]
